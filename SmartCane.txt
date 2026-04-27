@@ -1,0 +1,756 @@
+Below is a full engineering-style design spec for your **Smart Autonomous Assistive Cane** project.
+
+# Project Title
+
+**SmartGuide Cane: Autonomous Agent–Based Assistive Cane for Blind and Low-Vision Users**
+
+## 1. Project Vision
+
+Build a smart cane using **Arduino-based sensors, camera-based object detection, Bluetooth phone connectivity, vibration alerts, and sound alerts** to help blind or low-vision users detect obstacles and navigate more safely.
+
+The same system can later be adapted to:
+
+* wheelchairs
+* walkers
+* delivery carts
+* bicycles
+* small robots
+* warehouse moving objects
+
+---
+
+# 2. Core Problem
+
+Traditional canes detect only obstacles that physically touch the cane. They may miss:
+
+* objects at chest/head height
+* moving obstacles
+* glass doors
+* low-contrast objects
+* approaching people
+* uneven surfaces
+* obstacles slightly outside cane sweep range
+
+This project adds a **sensor + AI layer** to detect obstacles before contact.
+
+---
+
+# 3. System Goals
+
+## Primary Goals
+
+1. Detect nearby obstacles.
+2. Estimate obstacle distance.
+3. Alert the user through vibration and phone sound.
+4. Connect cane to mobile phone using Bluetooth.
+5. Use camera-based object detection for higher-level awareness.
+6. Keep system lightweight, low-cost, and modular.
+
+## Secondary Goals
+
+1. Log obstacle events.
+2. Build a mobile dashboard.
+3. Enable multiple alert modes.
+4. Extend system to moving platforms.
+
+---
+
+# 4. High-Level System Architecture
+
+```text
+Sensors + Camera
+     ↓
+Arduino / Edge Controller
+     ↓
+Obstacle Detection Logic
+     ↓
+Bluetooth Module
+     ↓
+Phone App
+     ↓
+Audio Alert + Vibration + Optional Logging
+```
+
+---
+
+# 5. Hardware Design
+
+## 5.1 Core Hardware Components
+
+| Component                                       | Purpose                        |
+| ----------------------------------------------- | ------------------------------ |
+| Arduino Uno / Nano / ESP32                      | Main microcontroller           |
+| Ultrasonic sensor HC-SR04                       | Distance detection             |
+| IR sensor                                       | Short-range obstacle detection |
+| Camera module                                   | Object detection               |
+| Bluetooth module HC-05 / BLE module / ESP32 BLE | Phone communication            |
+| Vibration motor                                 | Haptic feedback                |
+| Buzzer                                          | Backup audio alert             |
+| Battery pack                                    | Power system                   |
+| Switch                                          | Power on/off                   |
+| Enclosure                                       | Protect electronics            |
+| Cane mount                                      | Attach sensors securely        |
+| Optional LiDAR sensor                           | Better distance accuracy       |
+| Optional IMU                                    | Detect cane angle / motion     |
+| Optional GPS via phone                          | Location logging               |
+
+---
+
+## 5.2 Recommended Hardware Version
+
+### Best beginner-friendly version
+
+Use:
+
+* **ESP32** instead of Arduino Uno
+  Why: built-in Bluetooth + Wi-Fi, faster, smaller.
+
+* **Ultrasonic sensor**
+
+* **IR sensor**
+
+* **Vibration motor**
+
+* **Phone app**
+
+* **Optional ESP32-CAM or external camera module**
+
+### Best advanced version
+
+Use:
+
+* ESP32 or Raspberry Pi Zero 2 W
+* Camera for object detection
+* LiDAR / Time-of-Flight distance sensor
+* BLE phone app
+* TinyML model
+
+---
+
+# 6. Hardware Layers
+
+## Layer 1: Sensing Layer
+
+### Sensors
+
+1. **Ultrasonic sensor**
+
+   * Detects obstacle distance.
+   * Range: ~2 cm to 400 cm.
+   * Best for front-facing obstacle detection.
+
+2. **IR sensor**
+
+   * Detects nearby objects.
+   * Useful for low obstacles.
+
+3. **Camera**
+
+   * Detects object type:
+
+     * person
+     * chair
+     * wall
+     * car
+     * pole
+     * stairs
+     * door
+
+4. **Optional IMU**
+
+   * Tracks cane angle.
+   * Helps avoid false readings when cane is pointed upward/downward.
+
+---
+
+## Layer 2: Edge Processing Layer
+
+Microcontroller processes:
+
+* distance values
+* obstacle threshold
+* object detection result
+* alert priority
+
+Example logic:
+
+```text
+If distance < 50 cm → High alert
+If distance 50–100 cm → Medium alert
+If distance 100–150 cm → Low alert
+If camera detects person/car/stairs → Context alert
+```
+
+---
+
+## Layer 3: Communication Layer
+
+Bluetooth sends data to phone:
+
+Example message:
+
+```json
+{
+  "distance_cm": 42,
+  "risk": "HIGH",
+  "object": "chair",
+  "direction": "front",
+  "timestamp": "2026-04-26T10:30:00"
+}
+```
+
+---
+
+## Layer 4: Phone App Layer
+
+Phone app receives Bluetooth data and triggers:
+
+* sound alert
+* vibration
+* voice alert
+* visual display for testing
+
+Example voice alerts:
+
+* “Obstacle ahead”
+* “Object very close”
+* “Person approaching”
+* “Stairs detected”
+* “Caution: moving object”
+
+---
+
+## Layer 5: Logging / Research Layer
+
+Optional app stores:
+
+* distance
+* object type
+* false positive / false negative
+* GPS location
+* time
+* alert type
+
+This creates data for future research paper or demo.
+
+---
+
+# 7. Software Design
+
+## 7.1 Embedded Firmware
+
+Runs on ESP32 / Arduino.
+
+### Responsibilities
+
+* Read ultrasonic sensor.
+* Read IR sensor.
+* Receive camera inference result.
+* Calculate risk score.
+* Activate vibration motor.
+* Send Bluetooth alert to phone.
+
+---
+
+## 7.2 Mobile App
+
+Recommended stack:
+
+| Need           | Tool                                |
+| -------------- | ----------------------------------- |
+| Mobile app     | React Native / Flutter              |
+| Bluetooth      | React Native BLE PLX / Flutter Blue |
+| Audio alert    | Text-to-speech                      |
+| Vibration      | Phone vibration API                 |
+| Local database | SQLite / Firebase                   |
+| Dashboard      | Simple charts                       |
+
+---
+
+## 7.3 AI / Object Detection
+
+### Option A: Beginner
+
+Run object detection on phone camera.
+
+Advantages:
+
+* Easier
+* More powerful phone processor
+* Better camera quality
+
+Flow:
+
+```text
+Phone camera → AI model → detect object → combine with cane sensor data
+```
+
+### Option B: Advanced
+
+Run object detection on ESP32-CAM or Raspberry Pi.
+
+Advantages:
+
+* More independent cane
+* Better engineering signal
+
+Disadvantages:
+
+* Harder
+* Slower
+* More power draw
+
+### Recommended approach
+
+Start with **sensor cane + phone object detection**.
+Then later add **edge camera inference**.
+
+---
+
+# 8. Alert Logic
+
+## Risk Levels
+
+| Distance   | Risk   | Alert                               |
+| ---------- | ------ | ----------------------------------- |
+| >150 cm    | Low    | No alert                            |
+| 100–150 cm | Low    | Light vibration                     |
+| 50–100 cm  | Medium | Medium vibration + soft sound       |
+| <50 cm     | High   | Strong vibration + loud voice alert |
+
+---
+
+## Alert Priority
+
+| Object           | Priority   |
+| ---------------- | ---------- |
+| Stairs/drop-off  | Critical   |
+| Moving vehicle   | Critical   |
+| Person close     | High       |
+| Chair/table/pole | Medium     |
+| Wall/door        | Medium     |
+| Unknown object   | Low/Medium |
+
+---
+
+## Haptic Pattern
+
+| Risk     | Vibration Pattern    |
+| -------- | -------------------- |
+| Low      | 1 short pulse        |
+| Medium   | 2 pulses             |
+| High     | continuous pulse     |
+| Critical | rapid repeated pulse |
+
+---
+
+# 9. System Data Flow
+
+```text
+Ultrasonic sensor detects 45 cm
+        ↓
+IR sensor confirms nearby object
+        ↓
+Camera detects "chair"
+        ↓
+Risk Engine: HIGH
+        ↓
+Cane vibrates strongly
+        ↓
+Bluetooth sends alert
+        ↓
+Phone says: "Obstacle ahead, very close"
+```
+
+---
+
+# 10. Prototype Versions
+
+## MVP Version 1: Sensor Cane
+
+Features:
+
+* Ultrasonic sensor
+* Vibration motor
+* Buzzer
+* Simple threshold logic
+
+Goal:
+Detect obstacles and alert user.
+
+Timeline:
+1–2 weeks.
+
+---
+
+## Version 2: Bluetooth Cane
+
+Features:
+
+* ESP32 Bluetooth
+* Phone app
+* Sound alert through phone
+* Phone vibration
+
+Timeline:
+2–4 weeks.
+
+---
+
+## Version 3: AI Smart Cane
+
+Features:
+
+* Camera object detection
+* Object classification
+* Risk scoring
+* Trip logging
+
+Timeline:
+6–10 weeks.
+
+---
+
+## Version 4: Research-Grade Cane
+
+Features:
+
+* Dataset collection
+* False positive tracking
+* Multi-sensor fusion
+* Adaptable mount for wheelchair/cart
+
+Timeline:
+3–6 months.
+
+---
+
+# 11. Detailed Build Plan
+
+## Phase 1: Hardware MVP
+
+### Tasks
+
+1. Connect ultrasonic sensor to ESP32.
+2. Read distance values.
+3. Add vibration motor.
+4. Add buzzer.
+5. Implement threshold alerts.
+6. Mount on cane.
+
+### Deliverable
+
+Working cane that vibrates when obstacle is close.
+
+---
+
+## Phase 2: Bluetooth Integration
+
+### Tasks
+
+1. Enable ESP32 BLE.
+2. Send distance and risk level to phone.
+3. Build simple mobile app.
+4. Display distance.
+5. Trigger phone sound and vibration.
+
+### Deliverable
+
+Cane communicates with phone.
+
+---
+
+## Phase 3: Object Detection
+
+### Tasks
+
+1. Add phone camera mode.
+2. Run object detection model.
+3. Detect person/chair/car/pole.
+4. Combine object type with distance.
+5. Generate better alerts.
+
+### Deliverable
+
+AI-assisted cane with contextual alerts.
+
+---
+
+## Phase 4: Research Logging
+
+### Tasks
+
+1. Log each detected hazard.
+2. Store time, object, distance, risk.
+3. Add false positive / false negative button.
+4. Export CSV.
+
+### Deliverable
+
+Research-ready dataset.
+
+---
+
+## Phase 5: Field Testing
+
+### Tasks
+
+1. Test indoors.
+2. Test school hallway.
+3. Test sidewalk.
+4. Test moving obstacles.
+5. Collect feedback from sighted test users first.
+6. Only later test with blindfolded supervised users.
+
+### Deliverable
+
+Validated prototype and demo video.
+
+---
+
+# 12. Hardware Requirements
+
+## Minimum Hardware
+
+| Item                      | Quantity |
+| ------------------------- | -------: |
+| ESP32 board               |        1 |
+| HC-SR04 ultrasonic sensor |      1–3 |
+| IR obstacle sensor        |      1–2 |
+| Vibration motor           |      1–2 |
+| Buzzer                    |        1 |
+| Battery pack              |        1 |
+| Switch                    |        1 |
+| Wires                     |     many |
+| Breadboard / PCB          |        1 |
+| Cane                      |        1 |
+| Mount/enclosure           |        1 |
+
+---
+
+## Advanced Hardware
+
+| Item             | Purpose                |
+| ---------------- | ---------------------- |
+| ESP32-CAM        | Camera input           |
+| ToF LiDAR sensor | Better distance        |
+| IMU MPU6050      | Cane motion detection  |
+| GPS via phone    | location               |
+| 3D-printed mount | professional prototype |
+
+---
+
+# 13. Software Requirements
+
+## Embedded
+
+* Arduino IDE
+* ESP32 board support
+* BLE library
+* Sensor libraries
+
+## Mobile
+
+* React Native or Flutter
+* Bluetooth library
+* Text-to-speech
+* Vibration API
+* Local storage
+
+## AI
+
+* TensorFlow Lite
+* YOLOv8 Nano / MobileNet SSD
+* Optional OpenCV
+
+---
+
+# 14. Test Plan
+
+## 14.1 Unit Testing
+
+| Test                             | Expected Result       |
+| -------------------------------- | --------------------- |
+| Ultrasonic detects wall at 50 cm | Reading within ±10 cm |
+| Vibration motor activates        | Motor vibrates        |
+| Bluetooth connects to phone      | Connection stable     |
+| Phone receives data              | Distance shown        |
+| Buzzer activates                 | Sound heard           |
+
+---
+
+## 14.2 Integration Testing
+
+| Test Scenario              | Expected Result             |
+| -------------------------- | --------------------------- |
+| Object at 150 cm           | Low/no alert                |
+| Object at 80 cm            | Medium alert                |
+| Object at 40 cm            | High alert                  |
+| Moving person crosses path | Alert triggered             |
+| Bluetooth disconnects      | Cane still vibrates locally |
+| Phone app closed           | Cane still works locally    |
+
+---
+
+## 14.3 Field Testing
+
+### Indoor
+
+* hallway
+* classroom
+* doorway
+* table/chair obstacle
+
+### Outdoor
+
+* sidewalk
+* curb
+* parked car
+* pole
+* moving pedestrian
+
+### Moving-object version
+
+* attach to cart
+* attach to bike handle
+* test obstacle alerts
+
+---
+
+## 14.4 Safety Testing
+
+Important:
+
+* Do NOT test first with blind users unsupervised.
+* Use sighted users first.
+* Use spotters.
+* Test in controlled environments.
+* Include disclaimer.
+
+---
+
+# 15. Success Metrics
+
+| Metric                      | Target                 |
+| --------------------------- | ---------------------- |
+| Obstacle detection accuracy | >85% indoor            |
+| Alert latency               | <500 ms                |
+| Bluetooth reliability       | >95% stable connection |
+| False positive rate         | <20%                   |
+| Battery life                | 2+ hours MVP           |
+| User response time          | improves vs no alert   |
+
+---
+
+# 16. Risk Management
+
+| Risk              | Mitigation                         |
+| ----------------- | ---------------------------------- |
+| False negatives   | Local vibration + multiple sensors |
+| Too many alerts   | Adjustable sensitivity             |
+| Bluetooth failure | Cane still vibrates locally        |
+| Battery drain     | Sleep mode                         |
+| Camera lag        | Start with phone camera            |
+| Unsafe testing    | Controlled testing with spotter    |
+
+---
+
+# 17. Project Timeline
+
+## 12-Week Execution Plan
+
+| Week | Milestone                              |
+| ---- | -------------------------------------- |
+| 1    | Finalize requirements + buy hardware   |
+| 2    | Build ultrasonic + vibration prototype |
+| 3    | Add buzzer + threshold logic           |
+| 4    | Mount hardware on cane                 |
+| 5    | Add Bluetooth data transmission        |
+| 6    | Build phone app basic screen           |
+| 7    | Add phone sound + vibration            |
+| 8    | Add camera object detection            |
+| 9    | Combine object + distance risk logic   |
+| 10   | Add research logging                   |
+| 11   | Field test + improve enclosure         |
+| 12   | Demo video + GitHub + report           |
+
+---
+
+# 18. GitHub Repository Structure
+
+```text
+SmartGuide-Cane/
+  firmware/
+    esp32_cane_controller/
+  mobile-app/
+    src/
+      screens/
+      components/
+      services/
+  ai-model/
+    object_detection/
+  docs/
+    design_spec.md
+    test_plan.md
+    wiring_diagram.png
+  data/
+    test_results.csv
+  README.md
+```
+
+---
+
+# 19. Resume Bullet
+
+**Built SmartGuide Cane, an autonomous assistive navigation prototype using ESP32, ultrasonic sensors, Bluetooth, phone-based alerts, and computer vision to detect obstacles and support safer mobility for blind and low-vision users.**
+
+Stronger version after testing:
+
+**Designed and tested SmartGuide Cane, a multi-sensor assistive mobility system that detected nearby obstacles with real-time haptic and phone-based audio alerts, integrating Bluetooth communication and AI object detection for safer navigation.**
+
+---
+
+# 20. Research Paper Angle
+
+Future paper title:
+
+**“A Low-Cost Multi-Sensor Smart Cane for Real-Time Obstacle Detection and Assistive Navigation”**
+
+Research questions:
+
+1. Can low-cost sensors improve obstacle detection beyond traditional cane contact?
+2. How effective are phone-based alerts for blind navigation?
+3. Can sensor fusion reduce false positives and false negatives?
+4. Can the same architecture transfer to wheelchairs and carts?
+
+---
+
+# 21. Best Demo Video Structure
+
+1. Show problem: traditional cane misses elevated obstacle.
+2. Show hardware close-up.
+3. Show phone Bluetooth connection.
+4. Show obstacle detection.
+5. Show phone voice alert.
+6. Show vibration motor response.
+7. Show moving-object use case.
+8. End with future vision.
+
+Final line:
+
+> “I built this because accessibility should not depend on expensive technology. With simple sensors, AI, and thoughtful design, we can make mobility safer for more people.”
+
+---
+
+# Final Recommendation
+
+Build this in this order:
+
+1. **ESP32 + ultrasonic + vibration**
+2. **Bluetooth to phone**
+3. **Phone sound/vibration alerts**
+4. **Camera AI object detection**
+5. **Logging + research dashboard**
+6. **Demo + paper + GitHub**
+
+This project can become a **very strong UT research-entry project, internship portfolio project, and transfer application asset**.
