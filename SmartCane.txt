@@ -136,12 +136,12 @@ Use:
 1. **Ultrasonic sensor**
 
    * Detects obstacle distance.
-   * Range: ~2 cm to 400 cm.
+   * Range: ~2 cm (1.97) to 400 cm.
    * Best for front-facing obstacle detection.
 
 2. **IR sensor**
 
-   * Detects nearby objects.
+   * Detects nearby objects. (anything less than 2 cm)
    * Useful for low obstacles.
 
 3. **Camera**
