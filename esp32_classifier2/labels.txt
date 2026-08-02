@@ -1,0 +1,23 @@
+Bench
+Bicycle Rack
+Bike
+Building
+Bus
+Car
+Chair
+Dog
+Dustbin
+Electrical Pole
+Fire hydrant
+Guard rail
+Motorcycle
+Pedestrian crosswalk
+Person
+Plant Pot
+Stairs
+Traffic Cone
+Traffic sign
+Tree
+Truck
+obstacle-detection
+unknown
