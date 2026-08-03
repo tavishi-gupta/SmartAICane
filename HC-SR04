@@ -1,0 +1,63 @@
+// Define HC-SR04 pin connections
+const int TRIG_PIN = 9;
+const int ECHO_PIN = 10;
+
+// Define Vibration Motor pin connection
+const int MOTOR_PIN = 3; 
+
+void setup() {
+  Serial.begin(9600);
+  
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(MOTOR_PIN, OUTPUT);
+}
+
+void loop() {
+  // Clear the trigger pin
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  
+  // Trigger the sensor with a 10µs HIGH pulse
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  
+  // Read echo duration and calculate distance in cm
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  float distance = duration * 0.0343 / 2;
+
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.print(" cm -> ");
+
+  // Handle Alert Levels & Vibration Behaviors
+  if (distance > 0 && distance < 50) {
+    Serial.println("HIGH ALERT!");
+    // Continuous fast buzzing
+    digitalWrite(MOTOR_PIN, HIGH);
+  } 
+  else if (distance >= 50 && distance <= 100) {
+    Serial.println("Medium Alert");
+    // Pulse buzzing (Medium pattern)
+    digitalWrite(MOTOR_PIN, HIGH);
+    delay(150);
+    digitalWrite(MOTOR_PIN, LOW);
+    delay(150);
+  } 
+  else if (distance > 100 && distance <= 150) {
+    Serial.println("Low Alert");
+    // Slow pulse buzzing
+    digitalWrite(MOTOR_PIN, HIGH);
+    delay(100);
+    digitalWrite(MOTOR_PIN, LOW);
+    delay(400);
+  } 
+  else {
+    Serial.println("Safe / Out of Range");
+    // Turn motor off completely
+    digitalWrite(MOTOR_PIN, LOW);
+  }
+
+  delay(100); // Short delay between loops
+}
