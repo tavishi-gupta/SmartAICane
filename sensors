@@ -1,0 +1,78 @@
+// ==================== PIN DEFINITIONS ====================
+// HC-SR04 Ultrasonic Sensor Pins
+const int TRIG_PIN = 9;
+const int ECHO_PIN = 10;
+
+// IR Obstacle Sensor Pin
+const int IR_SENSOR_PIN = 2; // Digital OUT pin from IR module
+
+// Output Pin
+const int MOTOR_PIN = 3;     // Pin connected to vibration motor circuit
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(9600);
+
+  // Set pin modes
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(IR_SENSOR_PIN, INPUT);
+  pinMode(MOTOR_PIN, OUTPUT);
+}
+
+void loop() {
+  // ---------------- 1. READ IR SENSOR ----------------
+  // Sensor logic: LOW = Object detected within threshold (< 2 cm)
+  bool lowObstacleDetected = (digitalRead(IR_SENSOR_PIN) == LOW);
+
+  // ---------------- 2. READ HC-SR04 SENSOR ----------------
+  // Clear the trigger pin
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+  // Trigger the ultrasonic sensor with a 10µs pulse
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  // Read the echo pin duration and convert to cm
+  long duration = pulseIn(ECHO_PIN, HIGH);
+  float distance = duration * 0.0343 / 2.0;
+
+  // ---------------- 3. PRINT DIAGNOSTICS ----------------
+  Serial.print("IR Sensor: ");
+  Serial.print(lowObstacleDetected ? "OBSTACLE DETECTED" : "Clear");
+  Serial.print(" | Ultrasonic Distance: ");
+  Serial.print(distance);
+  Serial.print(" cm -> ");
+
+  // ---------------- 4. CONTROL ALERT LOGIC ----------------
+  // Instant priority alert if the IR sensor detects a very close obstacle (< 2 cm)
+  // or if the ultrasonic sensor detects an obstacle under 50 cm.
+  if (lowObstacleDetected || (distance > 0 && distance < 50)) {
+    Serial.println("HIGH ALERT!");
+    digitalWrite(MOTOR_PIN, HIGH); // Continuous buzz
+  } 
+  else if (distance >= 50 && distance <= 100) {
+    Serial.println("Medium Alert");
+    // Pulse pattern
+    digitalWrite(MOTOR_PIN, HIGH);
+    delay(150);
+    digitalWrite(MOTOR_PIN, LOW);
+    delay(150);
+  } 
+  else if (distance > 100 && distance <= 150) {
+    Serial.println("Low Alert");
+    // Slow pulse pattern
+    digitalWrite(MOTOR_PIN, HIGH);
+    delay(100);
+    digitalWrite(MOTOR_PIN, LOW);
+    delay(400);
+  } 
+  else {
+    Serial.println("Safe / Clear");
+    digitalWrite(MOTOR_PIN, LOW); // Motor off
+  }
+
+  delay(50); // Small loop delay
+}
