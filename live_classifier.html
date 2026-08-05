@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Live Object Classifier</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #eee;
+      text-align: center;
+      padding: 40px;
+    }
+    input {
+      font-size: 16px;
+      padding: 8px;
+      width: 220px;
+    }
+    button {
+      font-size: 16px;
+      padding: 8px 16px;
+      margin-left: 8px;
+    }
+    #label {
+      font-size: 48px;
+      margin-top: 40px;
+      font-weight: bold;
+    }
+    #confidence {
+      font-size: 20px;
+      color: #aaa;
+    }
+    #status {
+      margin-top: 20px;
+      color: #888;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Live Object Classifier</h2>
+  <div>
+    ESP32 IP address:
+    <input id="ipInput" type="text" placeholder="e.g. 192.168.1.42">
+    <button onclick="start()">Start</button>
+    <button onclick="stop()">Stop</button>
+  </div>
+
+  <div id="label">—</div>
+  <div id="confidence"></div>
+  <div id="status">Not connected</div>
+
+  <script>
+    let pollTimer = null;
+
+    async function pollOnce(ip) {
+      try {
+        const res = await fetch(`http://${ip}/classify`, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        if (data.error) {
+          document.getElementById("status").textContent = "Error: " + data.error;
+          return;
+        }
+
+        document.getElementById("label").textContent = data.label;
+        document.getElementById("confidence").textContent =
+          "confidence: " + (data.confidence * 100).toFixed(1) + "%";
+        document.getElementById("status").textContent =
+          "Connected — last updated " + new Date().toLocaleTimeString();
+      } catch (err) {
+        document.getElementById("status").textContent = "Connection error: " + err.message;
+      }
+    }
+
+    function start() {
+      const ip = document.getElementById("ipInput").value.trim();
+      if (!ip) {
+        alert("Enter your ESP32's IP address first.");
+        return;
+      }
+      stop(); // clear any existing timer
+      pollOnce(ip); // immediate first call
+      pollTimer = setInterval(() => pollOnce(ip), 1000); // then every 1 second
+    }
+
+    function stop() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      document.getElementById("status").textContent = "Stopped";
+    }
+  </script>
+</body>
+</html>

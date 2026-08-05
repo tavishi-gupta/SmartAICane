@@ -19,5 +19,3 @@ Traffic Cone
 Traffic sign
 Tree
 Truck
-obstacle-detection
-unknown

@@ -36,7 +36,10 @@ camera_config_t config;
 
 void startCameraServer();
 void camera_init();
-void classifier_init();  // defined in app_httpd.cpp
+void classifier_init();               // defined in app_httpd.cpp
+bool runClassification(String &outLabel, float &outConfidence);  // defined in app_httpd.cpp
+
+#include "sensor_fusion.h"
 
 void setup() {
   Serial.begin(115200);
@@ -45,6 +48,7 @@ void setup() {
 
   camera_init();
   classifier_init();
+  sensorFusionInit();
 
   WiFi.begin(ssid, password);
   WiFi.setSleep(false);
@@ -68,8 +72,12 @@ void setup() {
 }
 
 void loop() {
-  // Do nothing. Everything is done in another task by the web server
-  delay(10000);
+  // Camera streaming/HTTP is handled by its own task (startCameraServer()).
+  // This loop continuously reads sensors, runs periodic AI classification,
+  // fuses the risk level, and drives the vibration motor accordingly.
+  sensorFusionUpdate();
+  delay(20);  // small yield; sensorFusionUpdate() internally throttles the
+              // expensive parts (sensors every 100ms, AI every 500ms)
 }
 
 void camera_init() {

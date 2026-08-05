@@ -31,13 +31,12 @@
 
 // ---- Update this to match labels.txt (from train.py), in the same order ----
 static const char *CLASS_LABELS[] = {
-  "Bench", "Bicycle Rack", "Bike", "Building", "Bus",
-  "Car", "Chair", "Dog", "Dustbin", "Electrical Pole",
-  "Fire hydrant", "Guard rail", "Motorcycle", "Pedestrian crosswalk", "Person",
-  "Plant Pot", "Stairs", "Traffic Cone", "Traffic sign", "Tree",
-  "Truck", "obstacle-detection", "unknown"
+  "Bench", "Bicycle Rack", "Bike", "Building", "Bus", "Car", "Chair",
+  "Dog", "Dustbin", "Electrical Pole", "Fire hydrant", "Guard rail",
+  "Motorcycle", "Pedestrian crosswalk", "Person", "Plant Pot", "Stairs",
+  "Traffic Cone", "Traffic sign", "Tree", "Truck"
 };
-static const int NUM_CLASSES = 23;
+static const int NUM_CLASSES = 21;
 static const int MODEL_IMG_SIZE = 96;  // must match IMG_SIZE in train.py
 
 // Tensor arena — allocated from PSRAM at init time (see classifier_init()).
@@ -60,41 +59,60 @@ void classifier_init() {
   }
 }
 
+// ArduTFLite's own modelSetInput()/modelGetOutput() only support float32 tensors
+// (they index tflInputTensor->data.f[] and bound-check assuming 4 bytes/element).
+// Our model is int8-quantized, so we bypass those two functions and talk to the
+// underlying tensors directly instead. These are the same globals ArduTFLite
+// itself populates inside modelInit() — declared extern here to reach them.
+extern TfLiteTensor *tflInputTensor;
+extern TfLiteTensor *tflOutputTensor;
+
 // Nearest-neighbor downsample an RGB888 buffer to MODEL_IMG_SIZE x MODEL_IMG_SIZE
-// and feed it into the model, normalized the same way train.py did
-// (MobileNetV2 preprocess_input: pixel/127.5 - 1.0, range [-1, 1]).
+// and write it directly into the int8 input tensor, normalized the same way
+// train.py did (MobileNetV2 preprocess_input: pixel/127.5 - 1.0, range [-1, 1]),
+// then quantized using the model's own scale/zero-point.
 static void feed_model_from_rgb888(uint8_t *rgb, int width, int height) {
+  float scale = tflInputTensor->params.scale;
+  int zero_point = tflInputTensor->params.zero_point;
   int idx = 0;
+
   for (int y = 0; y < MODEL_IMG_SIZE; y++) {
     int srcY = y * height / MODEL_IMG_SIZE;
     for (int x = 0; x < MODEL_IMG_SIZE; x++) {
       int srcX = x * width / MODEL_IMG_SIZE;
       int srcIdx = (srcY * width + srcX) * 3;
-      uint8_t r = rgb[srcIdx + 0];
+      // NOTE: despite its name, fmt2rgb888() actually outputs BGR order
+      // (confirmed espressif/esp32-camera quirk), so we read it back as B,G,R.
+      uint8_t b = rgb[srcIdx + 0];
       uint8_t g = rgb[srcIdx + 1];
-      uint8_t b = rgb[srcIdx + 2];
-      modelSetInput((r / 127.5f) - 1.0f, idx++);
-      modelSetInput((g / 127.5f) - 1.0f, idx++);
-      modelSetInput((b / 127.5f) - 1.0f, idx++);
+      uint8_t r = rgb[srcIdx + 2];
+
+      float rf = (r / 127.5f) - 1.0f;
+      float gf = (g / 127.5f) - 1.0f;
+      float bf = (b / 127.5f) - 1.0f;
+
+      tflInputTensor->data.int8[idx++] = (int8_t)(rf / scale + zero_point);
+      tflInputTensor->data.int8[idx++] = (int8_t)(gf / scale + zero_point);
+      tflInputTensor->data.int8[idx++] = (int8_t)(bf / scale + zero_point);
     }
   }
 }
 
-static esp_err_t classify_handler(httpd_req_t *req) {
-  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-
+// Runs one classification pass: capture -> convert -> feed model -> infer ->
+// argmax. Shared by the /classify HTTP endpoint and the continuous sensor
+// fusion loop in the main .ino, so there's exactly one place implementing
+// "how we ask the model what it sees."
+bool runClassification(String &outLabel, float &outConfidence) {
   if (!classifierReady) {
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_send(req, "{\"error\":\"classifier not ready\"}", HTTPD_RESP_USE_STRLEN);
+    return false;
   }
 
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
     log_e("Camera capture failed");
-    return httpd_resp_send_500(req);
+    return false;
   }
 
-  // Convert whatever format the camera is in (JPEG or RGB565) to RGB888.
   size_t rgb_len = (size_t)fb->width * fb->height * 3;
   uint8_t *rgb_buf = (uint8_t *)heap_caps_malloc(rgb_len, MALLOC_CAP_SPIRAM);
   bool ok = false;
@@ -110,7 +128,7 @@ static esp_err_t classify_handler(httpd_req_t *req) {
       free(rgb_buf);
     }
     log_e("RGB conversion failed");
-    return httpd_resp_send_500(req);
+    return false;
   }
 
   feed_model_from_rgb888(rgb_buf, fb_width, fb_height);
@@ -118,23 +136,40 @@ static esp_err_t classify_handler(httpd_req_t *req) {
 
   if (!modelRunInference()) {
     log_e("Inference failed");
-    return httpd_resp_send_500(req);
+    return false;
   }
+
+  float output_scale = tflOutputTensor->params.scale;
+  int output_zero_point = tflOutputTensor->params.zero_point;
 
   float best_score = -1e9;
   int best_index = -1;
   for (int i = 0; i < NUM_CLASSES; i++) {
-    float score = modelGetOutput(i);
+    int8_t raw = tflOutputTensor->data.int8[i];
+    float score = (raw - output_zero_point) * output_scale;
     if (score > best_score) {
       best_score = score;
       best_index = i;
     }
   }
 
+  outLabel = (best_index >= 0) ? String(CLASS_LABELS[best_index]) : String("unknown");
+  outConfidence = best_score;
+  return true;
+}
+
+static esp_err_t classify_handler(httpd_req_t *req) {
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  String label;
+  float confidence;
+  if (!runClassification(label, confidence)) {
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, "{\"error\":\"classification failed\"}", HTTPD_RESP_USE_STRLEN);
+  }
+
   char resp[128];
-  snprintf(
-    resp, sizeof(resp), "{\"label\":\"%s\",\"confidence\":%.3f}", (best_index >= 0 ? CLASS_LABELS[best_index] : "unknown"), best_score
-  );
+  snprintf(resp, sizeof(resp), "{\"label\":\"%s\",\"confidence\":%.3f}", label.c_str(), confidence);
 
   httpd_resp_set_type(req, "application/json");
   return httpd_resp_send(req, resp, strlen(resp));
